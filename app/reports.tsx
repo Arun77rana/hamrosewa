@@ -78,15 +78,17 @@ export default function ProgressBarScreen() {
       <View key={label} style={styles.section}>
         <TouchableOpacity onPress={() => setExpanded(expanded === label ? null : label)}>
           <Text style={styles.label}>{label}</Text>
-          <View style={styles.baseBar}>
-            <View style={[styles.innerBar, { width: targetWidth, backgroundColor: "#4285F4" }]} />
-          </View>
-          <View style={styles.baseBar}>
-            <View style={[styles.innerBar, { width: spentWidth, backgroundColor: spentColor }]} />
-          </View>
-          <View style={styles.percentRow}>
+          <View style={styles.barContainer}>
+            <View style={styles.baseBar}>
+              <View style={[styles.innerBar, { width: targetWidth, backgroundColor: "#4285F4" }]} />
+            </View>
             <Text style={styles.percentText}>{target}%</Text>
-            <Text style={styles.percentText}>{Math.round(spentPercent)}%</Text>
+          </View>
+          <View style={styles.barContainer}>
+            <View style={styles.baseBar}>
+              <View style={[styles.innerBar, { width: spentWidth, backgroundColor: spentColor }]} />
+            </View>
+            <Text style={[styles.percentText, { color: spentColor }]}>{Math.round(spentPercent)}%</Text>
           </View>
         </TouchableOpacity>
 
@@ -233,25 +235,28 @@ const styles = StyleSheet.create({
     padding: 14,
   },
   label: { fontWeight: "600", fontSize: 15, marginBottom: 10 },
+  barContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 3,
+  },
   baseBar: {
+    flex: 1,
     height: 20,
     borderRadius: 10,
     backgroundColor: "#ddd",
     overflow: "hidden",
-    marginVertical: 3,
+    marginRight: 10,
   },
   innerBar: {
     height: 20,
     borderRadius: 10,
   },
-  percentRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 8,
-  },
   percentText: {
     fontSize: 14,
     fontWeight: "500",
+    minWidth: 40,
+    textAlign: 'right',
   },
   detailsBox: {
     marginTop: 16,

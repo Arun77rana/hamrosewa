@@ -87,11 +87,12 @@ const PieChart = ({ data, total }: { data: ChartItem[]; total: number }) => {
         />
         <SvgText
           x="100"
-          y="105"
+          y="100"
           textAnchor="middle"
           fontSize="14"
           fill="#000"
           fontWeight="bold"
+          dy="5"
         >
           NRS. {total.toLocaleString()}
         </SvgText>
