@@ -12,7 +12,8 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { format, isSameDay, parseISO } from "date-fns";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
+import NotificationService from "./services/NotificationService";
 
 const { width } = Dimensions.get("window");
 
@@ -53,13 +54,30 @@ export default function HomeScreen() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [dropdownVisibleIndex, setDropdownVisibleIndex] = useState<number | null>(null);
+  const [notificationCount, setNotificationCount] = useState(0);
 
   const fetchRecords = async () => {
     try {
-      const token = await AsyncStorage.getItem("token");
+      const token = await SecureStore.getItemAsync("token");
+      console.log("Token available:", !!token);
+      
+      if (!token) {
+        console.log("No token found, redirecting to login");
+        router.replace("/login");
+        return;
+      }
+
       const res = await fetch("https://expenses-tracker-8k6o.onrender.com/api/transactions", {
         headers: { Authorization: `Bearer ${token}` },
       });
+      
+      if (res.status === 401) {
+        console.log("Token expired or invalid, redirecting to login");
+        await SecureStore.deleteItemAsync("token");
+        router.replace("/login");
+        return;
+      }
+
       const data = await res.json();
 
       if (res.ok) {
@@ -80,8 +98,17 @@ export default function HomeScreen() {
     }
   };
 
+  const fetchNotifications = async () => {
+    const service = NotificationService.getInstance();
+    const notifications = await service.getAllNotifications();
+    setNotificationCount(notifications.length);
+  };
+
   useEffect(() => {
     fetchRecords();
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 2000); // Poll every 2s for updates
+    return () => clearInterval(interval);
   }, []);
 
   useFocusEffect(useCallback(() => { fetchRecords(); }, []));
@@ -127,7 +154,7 @@ export default function HomeScreen() {
     if (selectedIndex === null) return;
     const target = records[selectedIndex];
     try {
-      const token = await AsyncStorage.getItem("token");
+      const token = await SecureStore.getItemAsync("token");
       const res = await fetch(
         `https://expenses-tracker-8k6o.onrender.com/api/transactions/${target._id}`,
         {
@@ -172,23 +199,14 @@ export default function HomeScreen() {
               ? `- ${Math.abs(item.amount).toLocaleString()}`
               : `${item.amount.toLocaleString()}`}
           </Text>
-          <TouchableOpacity
-            onPress={() =>
-              setDropdownVisibleIndex(dropdownVisibleIndex === index ? null : index)
-            }
-          >
-            <Ionicons name="ellipsis-vertical" size={20} color="black" style={{ marginLeft: 8 }} />
+          {/* Edit Icon */}
+          <TouchableOpacity onPress={() => handleEdit(index)} style={{ marginLeft: 8, padding: 6 }}>
+            <Ionicons name="pencil-outline" size={20} color="#4CAF50" />
           </TouchableOpacity>
-          {dropdownVisibleIndex === index && (
-            <View style={styles.dropdownMenu}>
-              <TouchableOpacity onPress={() => handleEdit(index)} style={styles.dropdownItem}>
-                <Text>Edit</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => handleDelete(index)} style={styles.dropdownItem}>
-                <Text>Delete</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          {/* Delete Icon */}
+          <TouchableOpacity onPress={() => handleDelete(index)} style={{ marginLeft: 4, padding: 6 }}>
+            <Ionicons name="trash-outline" size={20} color="#FF6B6B" />
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -198,6 +216,35 @@ export default function HomeScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
+        {/* Notification Bell Icon */}
+        <View style={{ position: 'absolute', left: 24, top: 40, zIndex: 10 }}>
+          <TouchableOpacity onPress={() => router.push("/notifications")}
+            style={{ alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="notifications-outline" size={28} color="#FFD600" />
+            {notificationCount > 0 && (
+              <View style={{
+                position: 'absolute',
+                top: 2,
+                right: -2,
+                minWidth: 16,
+                height: 16,
+                borderRadius: 8,
+                backgroundColor: '#2196F3',
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingHorizontal: notificationCount > 9 ? 3 : 0,
+                borderWidth: 2,
+                borderColor: '#fff',
+              }}>
+                {notificationCount === 1 ? (
+                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#2196F3' }} />
+                ) : (
+                  <Text style={{ color: 'white', fontSize: 10, fontWeight: 'bold' }}>{notificationCount}</Text>
+                )}
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity onPress={() => router.push("/calendar")} style={{ alignSelf: "flex-end" }}>
           <Ionicons name="calendar-outline" size={24} color="black" />
         </TouchableOpacity>
@@ -244,8 +291,11 @@ export default function HomeScreen() {
       {/* Bottom Nav */}
       <View style={styles.bottomNav}>
         <TouchableOpacity onPress={() => router.push("/records")} style={styles.navItem}>
-          <Image source={require("../assets/icons/records.png")} style={styles.navIcon} />
-          <Text style={styles.navLabel}>Records</Text>
+          <Image 
+            source={require("../assets/icons/records.png")} 
+            style={[styles.navIcon, { tintColor: "#87B56C" }]} 
+          />
+          <Text style={[styles.navLabel, { color: "#87B56C" }]}>Records</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => router.push("/charts")} style={styles.navItem}>
           <Image source={require("../assets/icons/charts.png")} style={styles.navIcon} />
