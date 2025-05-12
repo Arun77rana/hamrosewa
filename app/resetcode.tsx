@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Image } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 
 const ResetCodeScreen = () => {
     const router = useRouter();
@@ -66,6 +67,11 @@ const ResetCodeScreen = () => {
 
     return (
         <View style={styles.container}>
+            <View style={{ position: 'absolute', top: 50, left: 20, zIndex: 20 }}>
+                <TouchableOpacity onPress={() => router.back()}>
+                    <Ionicons name="arrow-back" size={28} color="white" />
+                </TouchableOpacity>
+            </View>
             <Text style={styles.title}>Expense Tracker App</Text>
 
             <Image source={require("../assets/images/verify.png")} style={styles.image} />
