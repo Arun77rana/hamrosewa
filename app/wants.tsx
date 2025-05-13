@@ -12,7 +12,8 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
+import NotificationService from "./services/NotificationService";
 
 const { width } = Dimensions.get("window");
 
@@ -26,6 +27,8 @@ const WantsScreen = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
+  const [popupMessage, setPopupMessage] = useState("");
 
   const isEditMode = params?.editMode === "true";
 
@@ -82,7 +85,7 @@ const WantsScreen = () => {
       return;
     }
 
-    const token = await AsyncStorage.getItem("token");
+    const token = await SecureStore.getItemAsync("token");
 
     const payload = {
       type: "expense",
@@ -113,8 +116,15 @@ const WantsScreen = () => {
 
       if (response.ok) {
         console.log(`${editId ? "📝 Updated" : "✅ Added"} wants:`, data.transaction);
-        closeModal();
-        router.push("/home");
+        setPopupMessage(`Wants: ${amount} (${selectedLabel})`);
+        setShowPopup(true);
+        setTimeout(() => setShowPopup(false), 4000);
+        const notificationService = NotificationService.getInstance();
+        notificationService.addNotification(`Wants: ${amount} (${selectedLabel})`, "Transaction");
+        setTimeout(() => {
+          closeModal();
+          router.push("/home");
+        }, 3000);
       } else {
         alert(data.msg || "Failed to save transaction");
       }
@@ -212,6 +222,14 @@ const WantsScreen = () => {
           </View>
         </View>
       </Modal>
+
+      {showPopup && (
+        <View style={{ position: 'absolute', top: 80, left: 0, right: 0, zIndex: 999, alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#6CC551', padding: 16, borderRadius: 10, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, elevation: 4 }}>
+            <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>{popupMessage}</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 };

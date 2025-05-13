@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
     View,
     Text,
@@ -7,11 +7,18 @@ import {
     Image,
     ScrollView,
     Alert,
+    Modal,
+    TextInput,
+    FlatList,
+    Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Picker } from "@react-native-picker/picker"; // make sure it's installed
+import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from '@react-navigation/native';
+
+const { width } = Dimensions.get("window");
 
 export default function ProfileDetailScreen() {
     const router = useRouter();
@@ -19,9 +26,18 @@ export default function ProfileDetailScreen() {
         name: "",
         email: "",
         userId: "",
-        gender: "Other", // default
+        gender: "Other",
+        avatar: "😺",
     });
     const [editingGender, setEditingGender] = useState(false);
+    const [editingField, setEditingField] = useState<null | "nickname" | "id">(null);
+    const [tempValue, setTempValue] = useState("");
+    const [avatarModalVisible, setAvatarModalVisible] = useState(false);
+    const [genderModalVisible, setGenderModalVisible] = useState(false);
+    const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+    const [linkedAccount, setLinkedAccount] = useState<any>(null);
+    const emojis = ["😺", "🐶", "🐸", "🐵", "🦊", "🐰", "🐨", "🦄", "🐼", "🐷"];
+    const greenColor = "#87B56C";
 
     useEffect(() => {
         const loadUser = async () => {
@@ -29,11 +45,20 @@ export default function ProfileDetailScreen() {
             const storedGender = await AsyncStorage.getItem("gender");
             if (storedUser) {
                 const parsed = JSON.parse(storedUser);
+                const randomNum = Math.floor(10000 + Math.random() * 90000);
+                const userId = `24${randomNum}`;
+                
+                if (!parsed._id) {
+                    const updatedUser = { ...parsed, _id: userId };
+                    await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
+                }
+
                 setUserInfo({
                     name: parsed.name || "",
                     email: parsed.email || "",
-                    userId: parsed._id || "",
+                    userId: parsed._id || userId,
                     gender: storedGender || "Other",
+                    avatar: parsed.avatar || "😺",
                 });
             }
         };
@@ -41,19 +66,62 @@ export default function ProfileDetailScreen() {
         loadUser();
     }, []);
 
+    useFocusEffect(
+        useCallback(() => {
+            const fetchLinkedAccount = async () => {
+                const linked = await AsyncStorage.getItem('linkedBankAccount');
+                if (linked) setLinkedAccount(JSON.parse(linked));
+                else setLinkedAccount(null);
+            };
+            fetchLinkedAccount();
+        }, [])
+    );
+
     const handleGenderChange = async (value: string) => {
         setUserInfo(prev => ({ ...prev, gender: value }));
         await AsyncStorage.setItem("gender", value);
-        setEditingGender(false);
+        setGenderModalVisible(false);
     };
 
     const handleSignOut = async () => {
-        await AsyncStorage.clear();
-        router.replace("/login");
+        Alert.alert(
+            "Sign Out",
+            "Are you sure you want to sign out?",
+            [
+                {
+                    text: "No",
+                    style: "cancel"
+                },
+                {
+                    text: "Yes",
+                    onPress: async () => {
+                        await AsyncStorage.clear();
+                        router.replace("/loginscreen");
+                    }
+                }
+            ]
+        );
     };
 
-    const handleDeleteAccount = () => {
-        Alert.alert("Account Deletion", "Account deletion requested!");
+    const confirmEdit = () => {
+        if (editingField) {
+            setUserInfo(prev => ({
+                ...prev,
+                [editingField === "nickname" ? "name" : "userId"]: tempValue,
+            }));
+            setEditingField(null);
+            setTempValue("");
+        }
+    };
+
+    const confirmAvatar = (emoji: string) => {
+        setUserInfo(prev => ({ ...prev, avatar: emoji }));
+        setAvatarModalVisible(false);
+    };
+
+    const confirmDeleteAccount = async () => {
+        await AsyncStorage.clear();
+        router.replace("/loginscreen");
     };
 
     return (
@@ -65,31 +133,49 @@ export default function ProfileDetailScreen() {
             <Text style={styles.title}>Profile</Text>
 
             <ScrollView style={styles.scrollContainer}>
-                <TouchableOpacity style={styles.row}>
+                {linkedAccount && (
+                    <View style={[styles.row, { borderColor: '#6CC551', borderWidth: 2, marginBottom: 10 }]}> 
+                        <Text style={[styles.label, { color: '#6CC551', fontWeight: 'bold' }]}>Linked Bank Account</Text>
+                        <Text style={styles.value}>{linkedAccount.accountHolder} (****{linkedAccount.accountNumber?.slice(-4)})</Text>
+                    </View>
+                )}
+                <TouchableOpacity
+                    style={styles.row}
+                    onPress={() => setAvatarModalVisible(true)}
+                >
                     <Text style={styles.label}>My Avatar</Text>
                     <View style={styles.rowRight}>
-                        <Image source={require("../assets/images/user.png")} style={styles.avatar} />
+                        <Text style={{ fontSize: 24 }}>{userInfo.avatar}</Text>
                         <Ionicons name="chevron-forward" size={20} color="#666" />
                     </View>
                 </TouchableOpacity>
 
-                <View style={styles.row}>
+                {/* ID field (unclickable) */}
+                <TouchableOpacity style={styles.row} activeOpacity={1}>
                     <Text style={styles.label}>ID</Text>
                     <Text style={styles.value}>{userInfo.userId}</Text>
-                </View>
+                </TouchableOpacity>
 
-                <View style={styles.row}>
+                <TouchableOpacity
+                    style={styles.row}
+                    onPress={() => {
+                        setEditingField("nickname");
+                        setTempValue(userInfo.name);
+                    }}
+                >
                     <Text style={styles.label}>Nickname</Text>
                     <Text style={styles.value}>{userInfo.name}</Text>
-                </View>
+                </TouchableOpacity>
 
                 <View style={styles.row}>
                     <Text style={styles.label}>Email</Text>
                     <Text style={styles.value}>{userInfo.email}</Text>
                 </View>
 
-                {/* Gender Row with Picker */}
-                <TouchableOpacity style={styles.row} onPress={() => setEditingGender(!editingGender)}>
+                <TouchableOpacity
+                    style={styles.row}
+                    onPress={() => setGenderModalVisible(true)}
+                >
                     <Text style={styles.label}>Gender</Text>
                     <View style={styles.rowRight}>
                         <Text style={styles.value}>{userInfo.gender}</Text>
@@ -97,28 +183,153 @@ export default function ProfileDetailScreen() {
                     </View>
                 </TouchableOpacity>
 
-                {editingGender && (
-                    <View style={styles.pickerContainer}>
-                        <Picker
-                            selectedValue={userInfo.gender}
-                            onValueChange={handleGenderChange}
-                            style={{ height: 50, width: "100%" }}
-                        >
-                            <Picker.Item label="Male" value="Male" />
-                            <Picker.Item label="Female" value="Female" />
-                            <Picker.Item label="Other" value="Other" />
-                        </Picker>
-                    </View>
-                )}
-
                 <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
                     <Text style={styles.buttonText}>Sign Out</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.deleteButton} onPress={handleDeleteAccount}>
+                <TouchableOpacity style={styles.deleteButton} onPress={() => setDeleteModalVisible(true)}>
                     <Text style={styles.buttonText}>Delete Account</Text>
                 </TouchableOpacity>
             </ScrollView>
+
+            {/* Bottom Navigation */}
+            <View style={styles.bottomNav}>
+                <TouchableOpacity onPress={() => router.push("/records")} style={styles.navItem}>
+                    <Image source={require("../assets/icons/records.png")} style={styles.navIcon} />
+                    <Text style={styles.navLabel}>Records</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => router.push("/charts")} style={styles.navItem}>
+                    <Image source={require("../assets/icons/charts.png")} style={styles.navIcon} />
+                    <Text style={styles.navLabel}>Charts</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => router.push("/addExpense")} style={styles.fabButtonContainer}>
+                    <View style={styles.fabButton}>
+                        <Text style={styles.fabText}>+</Text>
+                    </View>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => router.push("/reports")} style={styles.navItem}>
+                    <Image source={require("../assets/icons/reports.png")} style={styles.navIcon} />
+                    <Text style={styles.navLabel}>Reports</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => router.push("/profile")} style={styles.navItem}>
+                    <Ionicons name="person-outline" size={26} color="#87B56C" />
+                    <Text style={[styles.navLabel, { color: "#87B56C" }]}>Me</Text>
+                </TouchableOpacity>
+            </View>
+
+            {/* Edit Nickname Modal */}
+            <Modal visible={editingField !== null} transparent animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.editPopupContainer}>
+                        <TextInput
+                            style={[styles.textInput, { backgroundColor: "#D9D9D9" }]}
+                            value={tempValue}
+                            onChangeText={setTempValue}
+                            placeholder="Enter new value"
+                            placeholderTextColor="#999"
+                        />
+                        <View style={styles.popupButtons}>
+                            <TouchableOpacity
+                                style={[styles.modalButton, { backgroundColor: greenColor }]}
+                                onPress={() => setEditingField(null)}
+                            >
+                                <Ionicons name="close" size={30} color="#000" />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.modalButton, { backgroundColor: greenColor }]}
+                                onPress={confirmEdit}
+                            >
+                                <Ionicons name="checkmark" size={30} color="#000" />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Avatar Modal */}
+            <Modal visible={avatarModalVisible} transparent animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.editPopupContainer}>
+                        <FlatList
+                            data={emojis}
+                            numColumns={5}
+                            keyExtractor={(item) => item}
+                            renderItem={({ item }) => (
+                                <TouchableOpacity onPress={() => confirmAvatar(item)}>
+                                    <Text style={{ fontSize: 28, margin: 8 }}>{item}</Text>
+                                </TouchableOpacity>
+                            )}
+                        />
+                        <TouchableOpacity style={styles.uploadButton}>
+                            <Text style={{ color: "#000" }}>Upload from Device</Text>
+                        </TouchableOpacity>
+                        <View style={styles.popupButtons}>
+                            <TouchableOpacity
+                                style={[styles.modalButton, { backgroundColor: greenColor }]}
+                                onPress={() => setAvatarModalVisible(false)}
+                            >
+                                <Ionicons name="close" size={30} color="#000" />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Gender Modal */}
+            <Modal visible={genderModalVisible} transparent animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.editPopupContainer}>
+                        {["Male", "Female", "Other"].map((gender, index) => (
+                            <TouchableOpacity
+                                key={gender}
+                                style={[styles.genderButton, { backgroundColor: greenColor }]}
+                                onPress={() => handleGenderChange(gender)}
+                            >
+                                <Text style={{ color: "#000", fontWeight: "bold" }}>{gender}</Text>
+                            </TouchableOpacity>
+                        ))}
+                        <Text
+                            style={{ marginTop: 10, fontSize: 14, color: "#555" }}
+                            onPress={() => handleGenderChange("I don't want to reveal")}
+                        >
+                            I don't want to reveal
+                        </Text>
+                        <View style={styles.popupButtons}>
+                            <TouchableOpacity
+                                style={[styles.modalButton, { backgroundColor: greenColor }]}
+                                onPress={() => setGenderModalVisible(false)}
+                            >
+                                <Ionicons name="close" size={30} color="#000" />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Delete Confirmation Modal */}
+            <Modal visible={deleteModalVisible} transparent animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.editPopupContainer}>
+                        <Text style={{ fontSize: 16, marginBottom: 20, color: "#000", textAlign: "center" }}>
+                            Do you really want to delete your account?
+                        </Text>
+                        <View style={styles.popupButtons}>
+                            <TouchableOpacity
+                                style={[styles.modalButton, { backgroundColor: greenColor }]}
+                                onPress={() => setDeleteModalVisible(false)}
+                            >
+                                <Ionicons name="close" size={30} color="#000" />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.modalButton, { backgroundColor: greenColor }]}
+                                onPress={confirmDeleteAccount}
+                            >
+                                <Ionicons name="checkmark" size={30} color="#000" />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -131,7 +342,7 @@ const styles = StyleSheet.create({
         fontSize: 24,
         textAlign: "center",
         fontWeight: "bold",
-        backgroundColor: "#9ACD81",
+        backgroundColor: "#87B56C",
         color: "#000",
         paddingBottom: 15,
     },
@@ -161,17 +372,6 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: "#666",
     },
-    avatar: {
-        width: 30,
-        height: 30,
-        borderRadius: 15,
-    },
-    pickerContainer: {
-        backgroundColor: "#f0f0f0",
-        marginHorizontal: 10,
-        borderRadius: 10,
-        marginBottom: 10,
-    },
     signOutButton: {
         backgroundColor: "#6c757d",
         marginTop: 30,
@@ -193,5 +393,95 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontWeight: "bold",
         fontSize: 16,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.6)",
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    editPopupContainer: {
+        backgroundColor: "#FFFFFF",
+        borderRadius: 20,
+        padding: 20,
+        width: "85%",
+        alignItems: "center",
+    },
+    textInput: {
+        borderRadius: 10,
+        padding: 10,
+        width: "100%",
+        marginBottom: 15,
+    },
+    popupButtons: {
+        flexDirection: "row",
+        gap: 20,
+        marginTop: 15,
+    },
+    modalButton: {
+        padding: 10,
+        borderRadius: 10,
+    },
+    uploadButton: {
+        backgroundColor: "#D9D9D9",
+        borderRadius: 8,
+        padding: 10,
+        marginTop: 10,
+    },
+    genderButton: {
+        width: "100%",
+        padding: 12,
+        marginBottom: 10,
+        borderRadius: 10,
+        alignItems: "center",
+    },
+    bottomNav: {
+        flexDirection: "row",
+        justifyContent: "space-around",
+        alignItems: "center",
+        paddingVertical: 10,
+        backgroundColor: "white",
+        borderTopWidth: 1,
+        borderTopColor: "#ccc",
+    },
+    navItem: { 
+        alignItems: "center", 
+        width: (width - 70) / 4 - 5 
+    },
+    navLabel: { 
+        fontSize: 12, 
+        marginTop: 3, 
+        color: "black", 
+        textAlign: "center" 
+    },
+    navIcon: { 
+        width: 26, 
+        height: 26, 
+        tintColor: "black" 
+    },
+    fabButtonContainer: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        backgroundColor: "white",
+        justifyContent: "center",
+        alignItems: "center",
+        marginTop: -30,
+        shadowColor: "#000",
+        shadowOpacity: 0.2,
+        shadowRadius: 6,
+        elevation: 4,
+    },
+    fabButton: {
+        backgroundColor: "#A1B97A",
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    fabText: {
+        fontSize: 34,
+        color: "black",
     },
 });

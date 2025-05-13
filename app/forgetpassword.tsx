@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert } from "react-native";
 import { useRouter } from "expo-router";
+import Ionicons from "@expo/vector-icons/Ionicons";
 
 const ForgetPasswordScreen = () => {
     const router = useRouter();
@@ -34,6 +35,11 @@ const ForgetPasswordScreen = () => {
 
     return (
         <View style={styles.container}>
+            <View style={{ position: 'absolute', top: 50, left: 20, zIndex: 20 }}>
+                <TouchableOpacity onPress={() => router.back()}>
+                    <Ionicons name="arrow-back" size={28} color="white" />
+                </TouchableOpacity>
+            </View>
             <Text style={styles.heading}>Expense Tracker App</Text>
 
             <Image
@@ -44,7 +50,7 @@ const ForgetPasswordScreen = () => {
 
             <Text style={styles.title}>Forgot Your Password ?</Text>
             <Text style={styles.description}>
-                Don’t worry ! It happens. Please{"\n"}enter your email.{"\n"}We will send you the OTP there.
+                Don't worry ! It happens. Please{"\n"}enter your email.{"\n"}We will send you the OTP there.
             </Text>
 
             <TextInput
@@ -57,10 +63,6 @@ const ForgetPasswordScreen = () => {
 
             <TouchableOpacity style={styles.button} onPress={handleSendCode}>
                 <Text style={styles.buttonText}>Confirm</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => router.back()}>
-                <Text style={styles.backText}>Go Back</Text>
             </TouchableOpacity>
         </View>
     );
@@ -123,12 +125,5 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         fontSize: 16,
         color: "#000",
-    },
-    backText: {
-        textAlign: "center",
-        color: "white",
-        textDecorationLine: "underline",
-        fontSize: 14,
-        marginTop: 10,
     },
 });

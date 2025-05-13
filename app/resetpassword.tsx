@@ -67,6 +67,11 @@ const ResetPasswordScreen = () => {
 
     return (
         <View style={styles.container}>
+            <View style={{ position: 'absolute', top: 50, left: 20, zIndex: 20 }}>
+                <TouchableOpacity onPress={() => router.back()}>
+                    <Ionicons name="arrow-back" size={28} color="white" />
+                </TouchableOpacity>
+            </View>
             <Text style={styles.title}>Expense Tracker App</Text>
             <Image source={require("../assets/images/pig.png")} style={styles.image} />
 

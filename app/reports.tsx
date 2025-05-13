@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   Image,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import axios from "axios";
@@ -35,13 +35,28 @@ export default function ProgressBarScreen() {
   const fetchStats = async () => {
     try {
       setLoading(true);
-      const token = await AsyncStorage.getItem("token");
-      if (!token) throw new Error("No token found");
+      const token = await SecureStore.getItemAsync("token");
+      
+      if (!token) {
+        console.log("No token found, redirecting to login");
+        router.replace("/login");
+        return;
+      }
 
       const res = await axios.get(
         "https://expenses-tracker-8k6o.onrender.com/api/transactions/budget",
-        { headers: { Authorization: `Bearer ${token}` } }
+        { 
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 10000 // 10 second timeout
+        }
       );
+
+      if (res.status === 401) {
+        console.log("Token expired or invalid, redirecting to login");
+        await SecureStore.deleteItemAsync("token");
+        router.replace("/login");
+        return;
+      }
 
       const { budgetStats } = res.data;
       setIncome(budgetStats.totalIncome || 0);
@@ -54,6 +69,11 @@ export default function ProgressBarScreen() {
       setError(false);
     } catch (err) {
       console.error("Failed to fetch stats:", err);
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        await SecureStore.deleteItemAsync("token");
+        router.replace("/login");
+        return;
+      }
       setError(true);
     } finally {
       setLoading(false);
@@ -193,27 +213,36 @@ export default function ProgressBarScreen() {
 
       <View style={styles.bottomNav}>
         <TouchableOpacity onPress={() => router.push("/records")} style={styles.navItem}>
-          <Image source={require("../assets/icons/records.png")} style={styles.navIcon} />
+          <Image 
+            source={require("../assets/icons/records.png")} 
+            style={[styles.navIcon, { tintColor: "#000" }]} 
+          />
           <Text style={styles.navLabel}>Records</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => router.push("/charts")} style={styles.navItem}>
-          <Image source={require("../assets/icons/charts.png")} style={styles.navIcon} />
+          <Image 
+            source={require("../assets/icons/charts.png")} 
+            style={[styles.navIcon, { tintColor: "#000" }]} 
+          />
           <Text style={styles.navLabel}>Charts</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push("/addExpense")} style={styles.fabButtonContainer}>
-          <View style={styles.fabButton}>
-            <Text style={styles.fabText}>+</Text>
-          </View>
-        </TouchableOpacity>
+        <View style={{ width: 70 }} />
         <TouchableOpacity onPress={() => router.push("/reports")} style={styles.navItem}>
-          <Image source={require("../assets/icons/reports.png")} style={styles.navIcon} />
-          <Text style={styles.navLabel}>Reports</Text>
+          <Image 
+            source={require("../assets/icons/reports.png")} 
+            style={[styles.navIcon, { tintColor: "#87B56C" }]} 
+          />
+          <Text style={[styles.navLabel, { color: "#87B56C" }]}>Reports</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => router.push("/profile")} style={styles.navItem}>
-          <Ionicons name="person-outline" size={26} color="black" />
+          <Ionicons name="person-outline" size={26} color="#000" />
           <Text style={styles.navLabel}>Me</Text>
         </TouchableOpacity>
       </View>
+
+      <TouchableOpacity style={[styles.addButton, { left: width / 2 - 35 }]} onPress={() => router.push("/addExpense")}>
+        <Text style={styles.addButtonText}>+</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -318,29 +347,23 @@ const styles = StyleSheet.create({
   navItem: { alignItems: "center", width: (width - 70) / 4 - 5 },
   navLabel: { fontSize: 12, marginTop: 3, color: "black", textAlign: "center" },
   navIcon: { width: 26, height: 26, tintColor: "black" },
-  fabButtonContainer: {
+  addButton: {
+    position: "absolute",
+    bottom: 20,
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: "white",
+    backgroundColor: "#7A9E7E",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: -30,
+    zIndex: 10,
     shadowColor: "#000",
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 4,
   },
-  fabButton: {
-    backgroundColor: "#A1B97A",
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  fabText: {
-    fontSize: 34,
-    color: "black",
+  addButtonText: { 
+    fontSize: 34, 
+    color: "white" 
   },
 });

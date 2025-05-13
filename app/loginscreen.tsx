@@ -1,99 +1,154 @@
-import React, { useEffect } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Image, Alert } from "react-native";
+import React, { useState } from "react";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
-import * as Google from "expo-auth-session/providers/google";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-
-// Must be called once in the root (assuming this is handled elsewhere)
-WebBrowser.maybeCompleteAuthSession();
+import { Ionicons } from "@expo/vector-icons";
+import * as SecureStore from "expo-secure-store";
+import { API_BASE_URL, API_ENDPOINTS } from './config/api';
 
 const LoginScreen = () => {
     const router = useRouter();
+    const [hidePassword, setHidePassword] = useState(true);
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+    const [emailError, setEmailError] = useState("");
+    const [passwordError, setPasswordError] = useState("");
+    const [loginError, setLoginError] = useState("");
 
-    // Google Auth setup from first code
-    const [request, response, promptAsync] = Google.useAuthRequest({
-        clientId: "202569895992-t6oaq5fj187c0f1nqvmltn902o6627sj.apps.googleusercontent.com",
-        scopes: ["openid", "email", "profile"],
-    });
+    const validateEmail = (email: string) => {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(email);
+    };
 
-    // Log redirect URI for verification (optional, from first code)
-    useEffect(() => {
-        if (request?.redirectUri) {
-            console.log("👉 REDIRECT URI used:", request.redirectUri);
+    const handleLogin = async () => {
+        // Reset errors
+        setEmailError("");
+        setPasswordError("");
+        setLoginError("");
+
+        // Validate inputs
+        if (!email) {
+            setEmailError("Email is required");
+            return;
         }
-    }, [request]);
-
-    // Handle Google login response (from first code)
-    useEffect(() => {
-        console.log("🔁 Google Auth Response:", response);
-
-        if (response?.type === "success") {
-            const accessToken = response?.authentication?.accessToken;
-
-            if (accessToken) {
-                console.log("✅ Access Token:", accessToken);
-                loginWithGoogleToken(accessToken); // Send access token to backend
-            }
-        } else if (response?.type === "error") {
-            Alert.alert("Google Sign-In Error", "Try again.");
+        if (!validateEmail(email)) {
+            setEmailError("Please enter a valid email");
+            return;
         }
-    }, [response]);
+        if (!password) {
+            setPasswordError("Password is required");
+            return;
+        }
 
-    // Send Google Access Token to backend (from first code)
-    const loginWithGoogleToken = async (accessToken: string) => {
+        setIsLoading(true);
+
         try {
-            console.log("🔐 Sending accessToken to backend:", accessToken);
-
-            const res = await fetch("https://expenses-tracker-8k6o.onrender.com/api/auth/google-login", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ accessToken }),
+            const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.LOGIN}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email,
+                    password,
+                }),
             });
 
-            const data = await res.json();
+            const data = await response.json();
 
-            if (res.ok) {
-                console.log("✅ Backend Response:", data);
-                await AsyncStorage.setItem("token", data.token);
-                Alert.alert("✅ Signed in with Google!");
-                router.replace("/home"); // Using replace instead of push for cleaner navigation
+            if (response.ok) {
+                // Save token
+                await SecureStore.setItemAsync('token', data.token);
+                // Check if PIN is set
+                const isPinSet = await SecureStore.getItemAsync('isPinSet');
+                if (isPinSet === 'true') {
+                    router.replace('/pin-lock');
+                } else {
+                    router.replace('/home');
+                }
             } else {
-                console.error("❌ Login failed:", data);
-                Alert.alert("Login Failed", data.msg || "Try again.");
+                setLoginError(data.message || 'Login failed. Please try again.');
             }
-        } catch (err) {
-            console.error("❌ Google Sign-in Error:", err);
-            Alert.alert("Server Error", "Could not reach the backend.");
+        } catch (error) {
+            console.error('Login error:', error);
+            setLoginError('Network error. Please check your connection and try again.');
+        } finally {
+            setIsLoading(false);
         }
     };
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Expense Tracker App</Text>
-            <View style={styles.card}>
-                <Image source={require("../assets/images/pig.png")} style={styles.image} />
-
-                <Text style={styles.subtitle}>Please sign in or register</Text>
-
-                {/* Sign in button navigates to /login */}
-                <TouchableOpacity style={styles.loginButton} onPress={() => router.push("/login")}>
-                    <Text style={styles.buttonText}>Sign in</Text>
-                </TouchableOpacity>
-
-                {/* Register button navigates to /signupscreen */}
-                <TouchableOpacity style={styles.loginButton} onPress={() => router.push("/signupscreen")}>
-                    <Text style={styles.buttonText}>Register</Text>
-                </TouchableOpacity>
-
-                {/* Google Login with promptAsync from first code */}
-                <TouchableOpacity style={styles.googleRow} onPress={() => promptAsync()}>
-                    <Image source={require("../assets/icons/google.png")} style={styles.googleIcon} />
-                    <Text style={styles.googleText}>Sign in with google</Text>
-                </TouchableOpacity>
+            <View style={styles.header}>
+                <Image source={require("../assets/images/user.png")} style={styles.image} />
+                <Text style={styles.title}>Welcome Back!</Text>
+                <Text style={styles.subtitle}>Sign in to continue</Text>
             </View>
 
-            {/* Removed empty TouchableOpacity from second code */}
+            <View style={styles.form}>
+                {loginError ? <Text style={styles.errorText}>{loginError}</Text> : null}
+
+                <View style={styles.inputContainer}>
+                    <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Email"
+                        value={email}
+                        onChangeText={setEmail}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                    />
+                </View>
+                {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
+
+                <View style={styles.inputContainer}>
+                    <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Password"
+                        value={password}
+                        onChangeText={setPassword}
+                        secureTextEntry={hidePassword}
+                    />
+                    <TouchableOpacity
+                        onPress={() => setHidePassword(!hidePassword)}
+                        style={styles.eyeIcon}
+                    >
+                        <Ionicons
+                            name={hidePassword ? "eye-outline" : "eye-off-outline"}
+                            size={20}
+                            color="#666"
+                        />
+                    </TouchableOpacity>
+                </View>
+                {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
+
+                <TouchableOpacity
+                    style={styles.forgotPassword}
+                    onPress={() => router.push("/forgotpassword")}
+                >
+                    <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={styles.loginButton}
+                    onPress={handleLogin}
+                    disabled={isLoading}
+                >
+                    {isLoading ? (
+                        <ActivityIndicator color="#fff" />
+                    ) : (
+                        <Text style={styles.loginButtonText}>Login</Text>
+                    )}
+                </TouchableOpacity>
+
+                <View style={styles.registerContainer}>
+                    <Text style={styles.registerText}>Don't have an account? </Text>
+                    <TouchableOpacity onPress={() => router.push("/register")}>
+                        <Text style={styles.registerLink}>Register</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
         </View>
     );
 };
@@ -101,59 +156,87 @@ const LoginScreen = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#87B56C",
-        justifyContent: "center",
-        alignItems: "center",
-        padding: 20,
+        backgroundColor: "#fff",
     },
-    card: {
+    header: {
         alignItems: "center",
-        width: "100%",
+        paddingTop: 60,
+        paddingBottom: 30,
     },
     image: {
-        width: 140,
-        height: 140,
-        resizeMode: "contain",
-        marginBottom: 10,
+        width: 200,
+        height: 200,
+        marginBottom: 20,
     },
     title: {
         fontSize: 24,
-        fontWeight: "500",
-        color: "white",
-        marginBottom: 30,
+        fontWeight: "bold",
+        marginBottom: 10,
     },
     subtitle: {
         fontSize: 16,
-        color: "white",
-        marginBottom: 15,
+        color: "#666",
     },
-    loginButton: {
-        backgroundColor: "#E0DFDF",
-        paddingVertical: 12,
+    form: {
         paddingHorizontal: 30,
-        borderRadius: 15,
-        marginVertical: 6,
-        width: "40%",
-        alignItems: "center",
     },
-    buttonText: {
-        fontSize: 18,
-        color: "black",
-        fontWeight: "500",
-    },
-    googleRow: {
+    inputContainer: {
         flexDirection: "row",
         alignItems: "center",
+        borderWidth: 1,
+        borderColor: "#ddd",
+        borderRadius: 8,
+        marginBottom: 15,
+        paddingHorizontal: 10,
+    },
+    inputIcon: {
+        marginRight: 10,
+    },
+    input: {
+        flex: 1,
+        height: 50,
+        fontSize: 16,
+    },
+    eyeIcon: {
+        padding: 10,
+    },
+    forgotPassword: {
+        alignSelf: "flex-end",
+        marginBottom: 20,
+    },
+    forgotPasswordText: {
+        color: "#6CC551",
+        fontSize: 14,
+    },
+    loginButton: {
+        backgroundColor: "#6CC551",
+        height: 50,
+        borderRadius: 8,
+        justifyContent: "center",
+        alignItems: "center",
+        marginBottom: 20,
+    },
+    loginButtonText: {
+        color: "#fff",
+        fontSize: 16,
+        fontWeight: "600",
+    },
+    registerContainer: {
+        flexDirection: "row",
+        justifyContent: "center",
         marginTop: 20,
     },
-    googleIcon: {
-        width: 22,
-        height: 22,
-        marginRight: 8,
+    registerText: {
+        color: "#666",
     },
-    googleText: {
-        color: "white",
-        fontSize: 16,
+    registerLink: {
+        color: "#6CC551",
+        fontWeight: "600",
+    },
+    errorText: {
+        color: "#FF3B30",
+        fontSize: 12,
+        marginBottom: 10,
     },
 });
 

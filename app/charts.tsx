@@ -13,7 +13,7 @@ import {
 import Svg, { G, Path, Text as SvgText } from "react-native-svg";
 import { Ionicons } from "@expo/vector-icons";
 import axios from "axios";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import { useRouter } from "expo-router";
 
 const { width } = Dimensions.get("window");
@@ -63,6 +63,10 @@ const PieChart = ({ data, total }: { data: ChartItem[]; total: number }) => {
   const innerRadius = 45;
   let startAngle = 0;
 
+  // Format the total amount for better display
+  const formattedTotal = total.toLocaleString();
+  const totalText = `NRS. ${formattedTotal}`;
+
   return (
     <Svg height="200" width="200" viewBox="0 0 200 200">
       <G>
@@ -79,23 +83,36 @@ const PieChart = ({ data, total }: { data: ChartItem[]; total: number }) => {
           startAngle += angle;
           return slice;
         })}
+        {/* Inner circle */}
         <Path
           d={`M ${100 - innerRadius},100 a ${innerRadius},${innerRadius} 0 1,0 ${
             innerRadius * 2
           },0 a ${innerRadius},${innerRadius} 0 1,0 -${innerRadius * 2},0`}
           fill="#fff"
         />
-        <SvgText
-          x="100"
-          y="100"
-          textAnchor="middle"
-          fontSize="14"
-          fill="#000"
-          fontWeight="bold"
-          dy="5"
-        >
-          NRS. {total.toLocaleString()}
-        </SvgText>
+        {/* Center text container */}
+        <G transform="translate(100, 100)">
+          <SvgText
+            x="0"
+            y="-5"
+            textAnchor="middle"
+            fontSize="12"
+            fill="#000"
+            fontWeight="bold"
+          >
+            NRS.
+          </SvgText>
+          <SvgText
+            x="0"
+            y="10"
+            textAnchor="middle"
+            fontSize="14"
+            fill="#000"
+            fontWeight="bold"
+          >
+            {formattedTotal}
+          </SvgText>
+        </G>
       </G>
     </Svg>
   );
@@ -202,7 +219,7 @@ export default function ChartsScreen() {
   const fetchChartData = async () => {
     try {
       setLoading(true);
-      const token = await AsyncStorage.getItem("token");
+      const token = await SecureStore.getItemAsync("token");
       let endpoint = "/expenses/monthly";
       if (view === "Today") endpoint = "/expenses/daily";
       else if (view === "This Year") endpoint = "/expenses/yearly";
@@ -316,27 +333,37 @@ export default function ChartsScreen() {
       {/* Bottom Nav */}
       <View style={styles.bottomNav}>
         <TouchableOpacity onPress={() => router.push("/records")} style={styles.navItem}>
-          <Image source={require("../assets/icons/records.png")} style={styles.navIcon} />
+          <Image 
+            source={require("../assets/icons/records.png")} 
+            style={[styles.navIcon, { tintColor: "#000" }]} 
+          />
           <Text style={styles.navLabel}>Records</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => router.push("/charts")} style={styles.navItem}>
-          <Image source={require("../assets/icons/charts.png")} style={styles.navIcon} />
-          <Text style={styles.navLabel}>Charts</Text>
+          <Image 
+            source={require("../assets/icons/charts.png")} 
+            style={[styles.navIcon, { tintColor: "#87B56C" }]} 
+          />
+          <Text style={[styles.navLabel, { color: "#87B56C" }]}>Charts</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push("/addExpense")} style={styles.fabButtonContainer}>
-          <View style={styles.fabButton}>
-            <Text style={styles.fabText}>+</Text>
-          </View>
-        </TouchableOpacity>
+        <View style={{ width: 70 }} />
         <TouchableOpacity onPress={() => router.push("/reports")} style={styles.navItem}>
-          <Image source={require("../assets/icons/reports.png")} style={styles.navIcon} />
+          <Image 
+            source={require("../assets/icons/reports.png")} 
+            style={[styles.navIcon, { tintColor: "#000" }]} 
+          />
           <Text style={styles.navLabel}>Reports</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => router.push("/profile")} style={styles.navItem}>
-          <Ionicons name="person-outline" size={26} color="black" />
+          <Ionicons name="person-outline" size={26} color="#000" />
           <Text style={styles.navLabel}>Me</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Add Button */}
+      <TouchableOpacity style={[styles.addButton, { left: width / 2 - 35 }]} onPress={() => router.push("/addExpense")}>
+        <Text style={styles.addButtonText}>+</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -361,20 +388,31 @@ const styles = StyleSheet.create({
   toggleText: { fontSize: 14, color: "#000" },
   activeToggle: { backgroundColor: "#000" },
   activeToggleText: { color: "#fff" },
-  chartRow: { alignItems: "center", justifyContent: "center", paddingVertical: 20 },
+  chartRow: { 
+    alignItems: "center", 
+    justifyContent: "center", 
+    paddingVertical: 20,
+    marginBottom: 10 
+  },
   itemRow: {
     flexDirection: "row",
     alignItems: "center",
     marginHorizontal: 20,
     marginVertical: 12,
+    paddingRight: 10,
   },
   iconLabel: {
-    width: 110,
+    width: 120,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  itemName: { fontSize: 14, fontWeight: "600", color: "#222" },
+  itemName: { 
+    fontSize: 14, 
+    fontWeight: "600", 
+    color: "#222",
+    flexShrink: 1,
+  },
   progressWrapper: {
     flex: 1,
     backgroundColor: "#eee",
@@ -382,11 +420,24 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
     marginRight: 12,
+    marginLeft: 8,
   },
   progressBar: { height: 8, borderRadius: 12 },
-  rightLabels: { alignItems: "flex-end", width: 90 },
-  percent: { fontSize: 12, color: "#555" },
-  amount: { fontSize: 13, fontWeight: "600" },
+  rightLabels: { 
+    alignItems: "flex-end", 
+    width: 100,
+    paddingLeft: 8,
+  },
+  percent: { 
+    fontSize: 12, 
+    color: "#555",
+    marginBottom: 2,
+  },
+  amount: { 
+    fontSize: 13, 
+    fontWeight: "600",
+    flexWrap: 'wrap',
+  },
   bottomNav: {
     flexDirection: "row",
     justifyContent: "space-around",
@@ -395,33 +446,43 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     borderTopWidth: 1,
     borderTopColor: "#ccc",
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
-  navItem: { alignItems: "center", width: (width - 70) / 4 - 5 },
-  navLabel: { fontSize: 12, marginTop: 3, color: "black", textAlign: "center" },
-  navIcon: { width: 26, height: 26, tintColor: "black" },
-  fabButtonContainer: {
+  navItem: { 
+    alignItems: "center", 
+    width: (width - 70) / 4 - 5 
+  },
+  navLabel: { 
+    fontSize: 12, 
+    marginTop: 3, 
+    color: "#000", 
+    textAlign: "center" 
+  },
+  navIcon: { 
+    width: 26, 
+    height: 26, 
+    tintColor: "#000" 
+  },
+  addButton: {
+    position: "absolute",
+    bottom: 20,
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: "white",
+    backgroundColor: "#7A9E7E",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: -30,
+    zIndex: 10,
     shadowColor: "#000",
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 4,
   },
-  fabButton: {
-    backgroundColor: "#A1B97A",
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  fabText: {
-    fontSize: 34,
-    color: "black",
+  addButtonText: { 
+    fontSize: 34, 
+    color: "white" 
   },
 });

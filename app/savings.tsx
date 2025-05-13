@@ -12,7 +12,8 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
+import NotificationService from "./services/NotificationService";
 
 const { width } = Dimensions.get("window");
 
@@ -26,6 +27,8 @@ const SavingsScreen = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
+  const [popupMessage, setPopupMessage] = useState("");
 
   const isEditMode = params?.editMode === "true";
 
@@ -81,12 +84,12 @@ const SavingsScreen = () => {
       return;
     }
 
-    const token = await AsyncStorage.getItem("token");
+    const token = await SecureStore.getItemAsync("token");
 
     const payload = {
-      type: "savings",
+      type: "expense",
       category: selectedLabel,
-      amount: parseFloat(amount),
+      amount: -Math.abs(parseFloat(amount)),
       note,
       budgetCategory: "savings",
       date: editId ? params.date : new Date().toISOString(), 
@@ -112,8 +115,15 @@ const SavingsScreen = () => {
 
       if (response.ok) {
         console.log(`${editId ? "📝 Updated" : "✅ Added"} savings:`, data.transaction);
-        closeModal();
-        router.push("/home");
+        setPopupMessage(`Savings: ${amount} (${selectedLabel})`);
+        setShowPopup(true);
+        setTimeout(() => setShowPopup(false), 4000);
+        const notificationService = NotificationService.getInstance();
+        notificationService.addNotification(`Savings: ${amount} (${selectedLabel})`, "Transaction");
+        setTimeout(() => {
+          closeModal();
+          router.push("/home");
+        }, 3000);
       } else {
         alert(data.msg || "Failed to save transaction");
       }
@@ -211,6 +221,14 @@ const SavingsScreen = () => {
           </View>
         </View>
       </Modal>
+
+      {showPopup && (
+        <View style={{ position: 'absolute', top: 80, left: 0, right: 0, zIndex: 999, alignItems: 'center' }}>
+          <View style={{ backgroundColor: '#6CC551', padding: 16, borderRadius: 10, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, elevation: 4 }}>
+            <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16 }}>{popupMessage}</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 };

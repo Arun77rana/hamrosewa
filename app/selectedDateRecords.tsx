@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import axios from "axios";
 import { format} from "date-fns";
 
@@ -44,7 +44,7 @@ export default function SelectedDateRecordsScreen() {
 
   const fetchRecords = async () => {
     try {
-      const token = await AsyncStorage.getItem("token");
+      const token = await SecureStore.getItemAsync("token");
       const formattedDate = format((date as string), "yyyy-MM-dd");
 
       const res = await axios.get(
@@ -80,7 +80,7 @@ export default function SelectedDateRecordsScreen() {
   const handleDelete = async () => {
     if (!selectedRecord) return;
     try {
-      const token = await AsyncStorage.getItem("token");
+      const token = await SecureStore.getItemAsync("token");
       await axios.delete(
         `https://expenses-tracker-8k6o.onrender.com/api/transactions/${selectedRecord._id}`,
         { headers: { Authorization: `Bearer ${token}` } }
