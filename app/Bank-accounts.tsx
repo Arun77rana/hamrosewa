@@ -7,10 +7,12 @@ import {
     TextInput,
     ScrollView,
     TouchableOpacity,
+    Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import { Swipeable } from 'react-native-gesture-handler';
 
 export default function BankAccountsScreen() {
     const router = useRouter();
@@ -42,8 +44,24 @@ export default function BankAccountsScreen() {
     };
 
     const removeAccount = (index: number) => {
-        const updated = accounts.filter((_, i) => i !== index);
-        saveAccounts(updated);
+        Alert.alert(
+            "Remove Account",
+            "Are you sure you want to remove this account?",
+            [
+                {
+                    text: "No",
+                    style: "cancel",
+                },
+                {
+                    text: "Yes",
+                    style: "destructive",
+                    onPress: () => {
+                        const updated = accounts.filter((_, i) => i !== index);
+                        saveAccounts(updated);
+                    },
+                },
+            ]
+        );
     };
 
     return (
@@ -55,18 +73,45 @@ export default function BankAccountsScreen() {
             <Text style={styles.header}>Bank Accounts</Text>
 
             {accounts.map((acc, index) => (
-                <View key={index} style={styles.card}>
-                    <Text style={styles.label}>Bank: {acc.bankName}</Text>
-                    <Text style={styles.label}>Account No: {acc.accountNumber}</Text>
-                    <Text style={styles.label}>Holder: {acc.accountHolder}</Text>
-                    <Text style={styles.label}>IFSC: {acc.ifsc}</Text>
+                <Swipeable
+                    key={index}
+                    renderRightActions={() => (
+                        <TouchableOpacity
+                            style={styles.swipeDeleteBtn}
+                            onPress={() => removeAccount(index)}
+                        >
+                            <Ionicons name="trash" size={26} color="white" />
+                            <Text style={styles.swipeDeleteText}>Remove</Text>
+                        </TouchableOpacity>
+                    )}
+                >
                     <TouchableOpacity
-                        style={styles.deleteBtn}
-                        onPress={() => removeAccount(index)}
+                        onPress={() => {
+                            Alert.alert(
+                                'Link Bank Account',
+                                'Do you want to link this bank account?',
+                                [
+                                    { text: 'No', style: 'cancel' },
+                                    {
+                                        text: 'Yes',
+                                        onPress: async () => {
+                                            await AsyncStorage.setItem('linkedBankAccount', JSON.stringify(acc));
+                                            Alert.alert('Success', 'Bank account linked successfully!');
+                                        },
+                                    },
+                                ]
+                            );
+                        }}
+                        activeOpacity={0.7}
                     >
-                        <Ionicons name="trash" size={20} color="white" />
+                        <View style={styles.card}>
+                            <Text style={styles.label}>Bank: {acc.bankName}</Text>
+                            <Text style={styles.label}>Account No: {acc.accountNumber}</Text>
+                            <Text style={styles.label}>Holder: {acc.accountHolder}</Text>
+                            <Text style={styles.label}>IFSC: {acc.ifsc}</Text>
+                        </View>
                     </TouchableOpacity>
-                </View>
+                </Swipeable>
             ))}
 
             <Text style={styles.subHeader}>Add New Account</Text>
@@ -103,13 +148,21 @@ const styles = StyleSheet.create({
         backgroundColor: "#f9f9f9",
         position: "relative",
     },
-    deleteBtn: {
-        position: "absolute",
-        top: 10,
-        right: 10,
-        backgroundColor: "#D9534F",
-        padding: 6,
-        borderRadius: 6,
+    swipeDeleteBtn: {
+        backgroundColor: '#D9534F',
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: 100,
+        height: '90%',
+        marginVertical: 8,
+        borderRadius: 10,
+        flexDirection: 'column',
+    },
+    swipeDeleteText: {
+        color: 'white',
+        fontWeight: 'bold',
+        marginTop: 4,
+        fontSize: 15,
     },
     label: { fontSize: 14, marginBottom: 4 },
     input: {
